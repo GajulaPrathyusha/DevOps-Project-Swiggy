@@ -52,10 +52,17 @@ pipeline{
         stage("Docker Build & Push"){
             steps{
                 script{
-                   withDockerRegistry(credentialsId: 'docker-creds'){   
-                       sh "/usr/bin/docker build -t swiggy ."
-                       sh "/usr/bin/docker tag swiggy terraformpractise123/swiggy:latest "
-                       sh "/usr/bin/docker push terraformpractise123/swiggy:latest "
+                   withCredentials([usernamePassword(
+                       credentialsId: 'docker-creds',
+                       usernameVariable: 'DOCKER_USER',
+                       passwordVariable: 'DOCKER_PASS'
+                  )]) {
+                      sh '''
+                         echo "$DOCKER_PASS" | /usr/bin/docker login -u "$DOCKER_USER" --password-stdin
+                         /usr/bin/docker build -t swiggy .
+                         /usr/bin/docker tag swiggy terraformpractise123/swiggy:latest
+                         /usr/bin/docker push terraformpractise123/swiggy:latest
+                         /usr/bin/docker logout
                     }
                 }
             }
