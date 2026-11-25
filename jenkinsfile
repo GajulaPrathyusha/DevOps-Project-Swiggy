@@ -49,20 +49,21 @@ pipeline{
                 sh "/usr/local/bin/trivy fs . > trivyfs.txt"
             }
         }
-        stage("Docker Build & Push"){
-            steps{
-                script{
-                   withCredentials([usernamePassword(
-                       credentialsId: 'docker-creds',
-                       usernameVariable: 'DOCKER_USER',
-                       passwordVariable: 'DOCKER_PASS'
-                  )]) {
-                      sh '''
-                         echo "$DOCKER_PASS" | /usr/bin/docker login -u "$DOCKER_USER" --password-stdin
-                         /usr/bin/docker build -t swiggy .
-                         /usr/bin/docker tag swiggy terraformpractise123/swiggy:latest
-                         /usr/bin/docker push terraformpractise123/swiggy:latest
-                         /usr/bin/docker logout
+        stage("Docker Build & Push") {
+            steps {
+              script {
+                  withCredentials([usernamePassword(
+                      credentialsId: 'docker-creds',
+                      usernameVariable: 'DOCKER_USER',
+                      passwordVariable: 'DOCKER_PASS'
+                )]) {
+                     sh '''
+                       set -e
+                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                         docker build -t swiggy .
+                         docker tag swiggy "${DOCKER_USER}/swiggy:latest"
+                         docker push "${DOCKER_USER}/swiggy:latest"
+                         docker logout
                       '''
                     }
                 }
