@@ -53,9 +53,9 @@ pipeline{
             steps{
                 script{
                    withDockerRegistry(credentialsId: 'docker-creds'){   
-                       sh "docker build -t swiggy ."
-                       sh "docker tag swiggy terraformpractise123/swiggy:latest "
-                       sh "docker push terraformpractise123/swiggy:latest "
+                       sh "/usr/bin/docker build -t swiggy ."
+                       sh "/usr/bin/docker tag swiggy terraformpractise123/swiggy:latest "
+                       sh "/usr/bin/docker push terraformpractise123/swiggy:latest "
                     }
                 }
             }
