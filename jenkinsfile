@@ -79,6 +79,7 @@ pipeline{
                 sh '''
                    set -e
                    docker rm -f swiggy || true
+                   docker pull terraformpractise123/swiggy:latest
                    docker run -d --name swiggy -p 3000:3000 terraformpractise123/swiggy:latest
                    docker ps --filter "name=swiggy"
                 '''
