@@ -74,9 +74,14 @@ pipeline{
                 sh "trivy image terraformpractise123/swiggy:latest > trivy.txt" 
             }
         }
-        stage('Deploy to container'){
-            steps{
-                sh 'docker run -d --name swiggy -p 3000:3000 terraformpractise123/swiggy:latest'
+        stage("Deploy to container") {
+            steps {
+                sh '''
+                   set -e
+                   docker rm -f swiggy || true
+                   docker run -d --name swiggy -p 3000:3000 terraformpractise123/swiggy:latest
+                   docker ps --filter "name=swiggy"
+                '''
             }
         }
     }
