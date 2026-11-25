@@ -1,93 +1,158 @@
-pipeline{
+
+pipeline {
     agent any
-    tools{
+
+    tools {
         jdk 'jdk17'
         nodejs 'node23'
     }
+
     environment {
-        SCANNER_HOME=tool 'sonar-scanner'
+        SCANNER_HOME = tool 'sonar-scanner'
     }
+
     stages {
-        stage('clean workspace'){
-            steps{
+
+        stage('Clean Workspace') {
+            steps {
                 cleanWs()
             }
         }
-        stage('Checkout from Git'){
-            steps{
+
+        stage('Checkout from Git') {
+            steps {
                 git 'https://github.com/GajulaPrathyusha/DevOps-Project-Swiggy.git'
             }
         }
-        stage("Sonarqube Analysis "){
-            steps{
+
+        stage('SonarQube Analysis') {
+            steps {
                 withSonarQubeEnv('sonar-server') {
-                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Swiggy \
-                    -Dsonar.projectKey=Swiggy '''
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=Swiggy \
+                        -Dsonar.projectKey=Swiggy
+                    '''
                 }
             }
         }
-        stage("quality gate"){
-           steps {
+
+        stage('Quality Gate') {
+            steps {
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token' 
+                    waitForQualityGate(
+                        abortPipeline: false,
+                        credentialsId: 'Sonar-token'
+                    )
                 }
-            } 
+            }
         }
+
         stage('Install Dependencies') {
             steps {
-                sh "npm install"
+                sh 'npm install'
             }
         }
-        stage('OWASP FS SCAN') {
+
+        stage('OWASP FS Scan') {
             steps {
                 dependencyCheck(
                     additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit --nvdApiDelay 12000',
                     odcInstallation: 'DP-Check'
                 )
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+
+                dependencyCheckPublisher(
+                    pattern: '**/dependency-check-report.xml'
+                )
             }
         }
-        stage('TRIVY FS SCAN') {
+
+        stage('Trivy FS Scan') {
             steps {
-                sh "/usr/local/bin/trivy fs . > trivyfs.txt"
+                sh '''
+                    trivy fs --exit-code 0 \
+                    --severity HIGH,CRITICAL . > trivyfs.txt
+
+                    cat trivyfs.txt
+                '''
             }
         }
-        stage("Docker Build & Push") {
+
+        stage('Docker Build & Push') {
             steps {
-              script {
-                  withCredentials([usernamePassword(
-                      credentialsId: 'docker-creds',
-                      usernameVariable: 'DOCKER_USER',
-                      passwordVariable: 'DOCKER_PASS'
-                )]) {
-                     sh '''
-                       set -e
-                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                         docker build -t swiggy .
-                         docker tag swiggy "${DOCKER_USER}/swiggy:latest"
-                         docker push "${DOCKER_USER}/swiggy:latest"
-                         docker logout
-                      '''
+                script {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'docker-creds',
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        )
+                    ]) {
+
+                        // Use the same image name in every stage
+                        env.IMAGE = "${DOCKER_USER}/swiggy:latest"
+
+                        sh '''
+                            set -e
+
+                            echo "$DOCKER_PASS" | docker login \
+                            -u "$DOCKER_USER" --password-stdin
+
+                            docker build -t "$IMAGE" .
+
+                            docker push "$IMAGE"
+
+                            docker logout
+                        '''
                     }
                 }
             }
         }
-        stage("TRIVY"){
-            steps{
-                sh '''
-                set -e
-                    trivy image --exit-code 0 --severity HIGH,CRITICAL terraformpractise123/swiggy:latest > trivy.txt
-                    cat trivy.txt
-                ''' 
-            }
-        }
-        stage("Deploy to container") {
+
+        stage('Trivy Image Scan') {
             steps {
                 sh '''
-                   set -e
-                   docker rm -f swiggy || true
-                   docker run -d --name swiggy -p 3000:3000 terraformpractise123/swiggy:latest
-                   docker ps --filter "name=swiggy"
+                    set -e
+
+                    trivy image \
+                    --exit-code 0 \
+                    --severity HIGH,CRITICAL \
+                    "$IMAGE" > trivy.txt
+
+                    cat trivy.txt
+                '''
+            }
+        }
+
+        stage('Deploy to Container') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "Deploying image: $IMAGE"
+
+                    # Remove old container if it exists
+                    docker rm -f swiggy || true
+
+                    # Start new container
+                    docker run -d \
+                    --name swiggy \
+                    -p 3000:3000 \
+                    "$IMAGE"
+
+                    # Wait for application startup
+                    sleep 5
+
+                    # Verify container is running
+                    if [ "$(docker inspect -f '{{.State.Running}}' swiggy)" != "true" ]; then
+                        echo "Container failed to start!"
+                        docker logs swiggy
+                        exit 1
+                    fi
+
+                    echo "Container deployed successfully!"
+
+                    docker ps --filter "name=swiggy"
                 '''
             }
         }
