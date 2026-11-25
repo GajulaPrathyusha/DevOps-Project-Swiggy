@@ -63,6 +63,7 @@ pipeline{
                          /usr/bin/docker tag swiggy terraformpractise123/swiggy:latest
                          /usr/bin/docker push terraformpractise123/swiggy:latest
                          /usr/bin/docker logout
+                      '''
                     }
                 }
             }
